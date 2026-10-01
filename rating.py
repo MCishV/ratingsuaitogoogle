@@ -14,7 +14,7 @@ SPREADSHEET_ID = os.environ["SPREADSHEET_ID"].strip()
 GOOGLE_CREDENTIALS = json.loads(os.environ["GOOGLE_CREDENTIALS"])
 
 # Названия листов (создаются, если их нет; иначе обновляются)
-SHEET_YEAR = "Учебный год"
+SHEET_YEAR = "Год"
 SHEET_MONTH = "Текущий месяц"
 
 W_LIKE = 1
@@ -42,7 +42,7 @@ vk = vk_api.VkApi(token=os.environ["SERVICE_TOKEN"].strip()).get_api()
 
 
 def period_bounds(now):
-    """Начало учебного года (1 сентября) и начало текущего месяца, по МСК."""
+    """Начало года и начало текущего месяца, по МСК."""
     start_year = now.year if now.month >= 9 else now.year - 1
 
     year_from = datetime(start_year, 9, 1, tzinfo=MOSCOW_TZ)
@@ -131,7 +131,7 @@ def make_rows(likes, comments):
 
 
 def calc(year_from, month_from):
-    """Возвращает (рейтинг за учебный год, рейтинг за месяц).
+    """Возвращает (рейтинг за год, рейтинг за месяц).
 
     Месяц считается по дате публикации поста: учитываются лайки и комментарии
     под постами, опубликованными с 1-го числа текущего месяца.
@@ -141,7 +141,7 @@ def calc(year_from, month_from):
 
     month_ts = int(month_from.timestamp())
 
-    print("Начало учебного года:", year_from.strftime("%d.%m.%Y"), "МСК")
+    print("Начало года:", year_from.strftime("%d.%m.%Y"), "МСК")
     print("Начало месяца:", month_from.strftime("%d.%m.%Y"), "МСК")
 
     posts = get_posts_since(int(year_from.timestamp()))
@@ -189,7 +189,7 @@ def calc(year_from, month_from):
     rows_year = make_rows(year_likes, year_comments)
     rows_month = make_rows(month_likes, month_comments)
 
-    print(f"Участников за учебный год: {len(rows_year)}")
+    print(f"Участников за год: {len(rows_year)}")
     print(f"Участников за месяц: {len(rows_month)}")
 
     return rows_year, rows_month
@@ -328,7 +328,7 @@ def main():
         table_month = build_table(rows_month, users)
 
         title_year = (
-            f"Рейтинг за учебный год {year_from.year}/{year_from.year + 1} "
+            f"Рейтинг за год {year_from.year}/{year_from.year + 1} "
             f"(с 01.09.{year_from.year}) на {updated_at}"
         )
         title_month = (
