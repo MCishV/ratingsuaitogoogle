@@ -22,6 +22,12 @@ POSTS_PAGE_SIZE = 100
 # Сколько участников выгружать (None = всех)
 MAX_ROWS = 300
 
+COL_WIDTH_PLACE = 50
+COL_WIDTH_NAME = 300
+COL_WIDTH_NUM = 80
+
+FORMULA_SEP = ";"
+
 MOSCOW_TZ = timezone(timedelta(hours=3))
 
 RATING_FROM = datetime(2026, 9, 1, 0, 0, 0, tzinfo=MOSCOW_TZ)
@@ -156,7 +162,7 @@ def load_users(uids):
     return users
 
 
-HEADER = ["Участник", "#", "❤️", "💬", "Баллы"]
+HEADER = ["#", "Участник", "❤️", "💬", "Баллы"]
 
 
 def build_table(rows):
@@ -178,8 +184,8 @@ def build_table(rows):
         name = name.replace('"', '""')
 
         table.append([
-            f'=HYPERLINK("https://vk.com/id{uid}";"{name}")',
             place,
+            f'=HYPERLINK("https://vk.com/id{uid}"{FORMULA_SEP}"{name}")',
             likes_count,
             comments_count,
             points
@@ -187,6 +193,19 @@ def build_table(rows):
 
     return table
 
+def set_col_width(ws, col_index, pixels):
+    return {
+        "updateDimensionProperties": {
+            "range": {
+                "sheetId": ws.id,
+                "dimension": "COLUMNS",
+                "startIndex": col_index,
+                "endIndex": col_index + 1
+            },
+            "properties": {"pixelSize": pixels},
+            "fields": "pixelSize"
+        }
+    }
 
 def get_worksheet():
     creds = Credentials.from_service_account_info(
@@ -215,6 +234,8 @@ def write_to_sheet(table, updated_at):
         value_input_option="USER_ENTERED"
     )
 
+    last_row = len(table) + 2
+
     ws.format("A1", {"textFormat": {"bold": True, "fontSize": 14}})
     ws.format(
         "A3:E3",
@@ -224,10 +245,21 @@ def write_to_sheet(table, updated_at):
             "backgroundColor": {"red": 0.9, "green": 0.9, "blue": 0.9}
         }
     )
-    ws.format(
-        f"B4:E{len(table) + 2}",
-        {"horizontalAlignment": "CENTER"}
-    )
+
+    # Номер и числа по центру, имя слева
+    ws.format(f"A4:A{last_row}", {"horizontalAlignment": "CENTER"})
+    ws.format(f"C4:E{last_row}", {"horizontalAlignment": "CENTER"})
+
+    # Ширина: A узкий, B широкий, C–E средние
+    ws.spreadsheet.batch_update({
+        "requests": [
+            set_col_width(ws, 0, COL_WIDTH_PLACE),
+            set_col_width(ws, 1, COL_WIDTH_NAME),
+            set_col_width(ws, 2, COL_WIDTH_NUM),
+            set_col_width(ws, 3, COL_WIDTH_NUM),
+            set_col_width(ws, 4, COL_WIDTH_NUM),
+        ]
+    })
 
     ws.freeze(rows=3)
 
