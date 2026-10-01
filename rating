@@ -10,21 +10,17 @@ from google.oauth2.service_account import Credentials
 
 GROUP_ID = int(os.environ["GROUP_ID"].strip())
 
-# Google Sheets
 SPREADSHEET_ID = os.environ["SPREADSHEET_ID"].strip()
 SHEET_NAME = os.environ.get("SHEET_NAME", "Рейтинг").strip()
-GOOGLE_CREDENTIALS = json.loads(os.environ["GOOGLE_CREDENTIALS"])  # JSON сервисного аккаунта
+GOOGLE_CREDENTIALS = json.loads(os.environ["GOOGLE_CREDENTIALS"])
 
 W_LIKE = 1
 W_COMMENT = 2
 
 POSTS_PAGE_SIZE = 100
 
-# Сколько участников выгружать в таблицу (None = всех)
+# Сколько участников выгружать (None = всех)
 MAX_ROWS = 300
-
-# Показывать фото в первом столбце (формула =IMAGE)
-SHOW_PHOTO = True
 
 MOSCOW_TZ = timezone(timedelta(hours=3))
 
@@ -151,20 +147,16 @@ def calc():
 
 
 def load_users(uids):
-    """Имена и фото через users.get (максимум 1000 id за запрос)."""
     users = {}
 
     for i in range(0, len(uids), 1000):
-        chunk = uids[i:i + 1000]
-
-        for u in vk.users.get(
-            user_ids=chunk,
-            fields="photo_100",
-            lang=0
-        ):
+        for u in vk.users.get(user_ids=uids[i:i + 1000], lang=0):
             users[u["id"]] = u
 
     return users
+
+
+HEADER = ["Участник", "#", "❤️", "💬", "Баллы"]
 
 
 def build_table(rows):
@@ -173,12 +165,7 @@ def build_table(rows):
 
     users = load_users([r[0] for r in rows])
 
-    header = []
-    if SHOW_PHOTO:
-        header.append("Фото")
-    header += ["Участник", "#", "❤️", "💬", "Баллы"]
-
-    table = [header]
+    table = [HEADER]
 
     for place, (uid, likes_count, comments_count, points) in enumerate(rows, 1):
         user = users.get(uid)
@@ -190,21 +177,13 @@ def build_table(rows):
 
         name = name.replace('"', '""')
 
-        row = []
-
-        if SHOW_PHOTO:
-            photo = (user or {}).get("photo_100")
-            row.append(f'=IMAGE("{photo}")' if photo else "")
-
-        row += [
+        table.append([
             f'=HYPERLINK("https://vk.com/id{uid}","{name}")',
             place,
             likes_count,
             comments_count,
             points
-        ]
-
-        table.append(row)
+        ])
 
     return table
 
@@ -215,8 +194,7 @@ def get_worksheet():
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
 
-    gc = gspread.authorize(creds)
-    sh = gc.open_by_key(SPREADSHEET_ID)
+    sh = gspread.authorize(creds).open_by_key(SPREADSHEET_ID)
 
     try:
         return sh.worksheet(SHEET_NAME)
@@ -229,11 +207,7 @@ def write_to_sheet(table, updated_at):
 
     ws.clear()
 
-    # Строка 1 — заголовок с временем обновления, таблица со строки 3
-    ws.update(
-        range_name="A1",
-        values=[[f"Рейтинг на {updated_at}"]]
-    )
+    ws.update(range_name="A1", values=[[f"Рейтинг на {updated_at}"]])
 
     ws.update(
         range_name="A3",
@@ -241,41 +215,19 @@ def write_to_sheet(table, updated_at):
         value_input_option="USER_ENTERED"
     )
 
-    ncols = len(table[0])
-    last_col = chr(ord("A") + ncols - 1)
-
     ws.format("A1", {"textFormat": {"bold": True, "fontSize": 14}})
     ws.format(
-        f"A3:{last_col}3",
+        "A3:E3",
         {
             "textFormat": {"bold": True},
             "horizontalAlignment": "CENTER",
             "backgroundColor": {"red": 0.9, "green": 0.9, "blue": 0.9}
         }
     )
-
-    first_num_col = chr(ord("A") + (2 if SHOW_PHOTO else 1))
     ws.format(
-        f"{first_num_col}4:{last_col}{len(table) + 2}",
+        f"B4:E{len(table) + 2}",
         {"horizontalAlignment": "CENTER"}
     )
-
-    # Высота строк под фото
-    if SHOW_PHOTO and len(table) > 1:
-        ws.spreadsheet.batch_update({
-            "requests": [{
-                "updateDimensionProperties": {
-                    "range": {
-                        "sheetId": ws.id,
-                        "dimension": "ROWS",
-                        "startIndex": 3,
-                        "endIndex": len(table) + 2
-                    },
-                    "properties": {"pixelSize": 60},
-                    "fields": "pixelSize"
-                }
-            }]
-        })
 
     ws.freeze(rows=3)
 
@@ -286,11 +238,7 @@ def main():
     try:
         rows = calc()
 
-        if not rows:
-            table = [["Участник", "#", "❤️", "💬", "Баллы"]]
-            print("Пока нет активности")
-        else:
-            table = build_table(rows)
+        table = build_table(rows) if rows else [HEADER]
 
         write_to_sheet(table, updated_at)
 
