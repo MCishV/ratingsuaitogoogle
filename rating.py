@@ -178,7 +178,7 @@ def build_table(rows):
         name = name.replace('"', '""')
 
         table.append([
-            f'=HYPERLINK("https://vk.com/id{uid}","{name}")',
+            f'=HYPERLINK("https://vk.com/id{uid}";"{name}")',
             place,
             likes_count,
             comments_count,
